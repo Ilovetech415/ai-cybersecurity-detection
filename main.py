@@ -1,21 +1,44 @@
 from fastapi import FastAPI
+from pydantic import BaseModel
+from typing import List
 import numpy as np
 from sklearn.ensemble import IsolationForest
+from utils.feature_engineering import extract_features
+import logging
 
 app = FastAPI()
 
-# Train a simple model
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("security-ai")
+
+# Train model (simulated data)
 model = IsolationForest(contamination=0.1)
-X_train = np.random.rand(100, 3)
+X_train = np.random.rand(200, 3)
 model.fit(X_train)
+
+class LoginAttempt(BaseModel):
+    failed_attempts: int
+    time_interval: float
+    ip_requests: int
 
 @app.get("/")
 def home():
-    return {"message": "Cybersecurity AI Detection Running"}
+    return {"status": "Cybersecurity AI Detection Running"}
 
-@app.post("/detect")
-def detect(data: list):
-    X = np.array(data)
+@app.post("/detect-login")
+def detect_login(attempts: List[LoginAttempt]):
+    features = [extract_features(a.dict()) for a in attempts]
+    X = np.array(features)
+
     preds = model.predict(X)
-    results = ["Normal" if p == 1 else "Anomaly" for p in preds]
-    return {"results": results}
+
+    results = []
+    for i, p in enumerate(preds):
+        if p == -1:
+            logger.warning(f"Suspicious activity detected: {attempts[i]}")
+            results.append("⚠️ Suspicious Activity")
+        else:
+            results.append("✅ Normal")
+
+    return {"analysis": results}
